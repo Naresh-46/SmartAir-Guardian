@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+venv/
+*.h5
+*.pkl
+
+# Dataset (optional)
+# dataset/*.csv
+
+# Arduino
+*.elf
+*.bin
+
+# VS Code
+.vscode/
+
+# Windows
+Thumbs.db
+Desktop.ini
