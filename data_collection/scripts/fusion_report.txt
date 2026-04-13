@@ -1,0 +1,141 @@
+============================================================
+STEP 1 — Load & deduplicate sources
+============================================================
+  Loaded train      : (6240, 21)
+  Loaded train_copy : (6240, 21)
+  Loaded test       : (35217, 21)
+  train_-_Copy.csv is IDENTICAL to train.csv → skipping duplicate
+
+  Train classes present : [np.int64(0), np.int64(1), np.int64(2), np.int64(5)]
+  Test  classes present : [np.int64(0), np.int64(1), np.int64(2), np.int64(3), np.int64(4), np.int64(5)]
+
+  Train class distribution:
+    class 0 (clean          ):  1560 rows
+    class 1 (smoke_CO       ):  1560 rows
+    class 2 (alcohol_VOC    ):  1560 rows
+    class 5 (mixed_LPG      ):  1560 rows
+
+  Test class distribution:
+    class 0 (clean          ):  8233 rows (23.4%)
+    class 1 (smoke_CO       ):  2185 rows (6.2%)
+    class 2 (alcohol_VOC    ):  3663 rows (10.4%)
+    class 3 (NH3_ammonia    ):   674 rows (1.9%)
+    class 4 (fire_flame     ): 18184 rows (51.6%)
+    class 5 (mixed_LPG      ):  2278 rows (6.5%)
+
+============================================================
+STEP 2 — Problem audit
+============================================================
+  [P1] CRITICAL: flame column in public train is always 0.0
+       → flame was not available in public dataset
+       → MQ135_missing=0, MQ3_missing=0, MQ7_missing=0
+       → MQ4_missing=1, DHT_temp_missing=1, DHT_hum_missing=1 (entire public set)
+
+  [P2] CRITICAL: public train MISSING classes: {3, 4}
+       → class 3 (NH3) and class 4 (fire) only exist in ESP32 test data
+       → model CANNOT learn NH3/fire patterns from public data alone
+       → Fix: use ESP32 data for those classes in training split too
+
+  [P3] HIGH: class 4 (fire_flame) = 51.6% of ESP32 test data
+       → severe imbalance; model will be biased toward fire class
+
+  [P4] CRITICAL domain shift: MQ7 train max=2.77, test max=38.50
+       → ESP32 MQ7 scaled differently (different Ro calibration or ADC resolution)
+       → Both sets are already z-score normalized per source — this is expected
+       → Per-source normalization (already applied) is the correct fix
+
+  Total problems found: 4
+
+============================================================
+STEP 3 — Train / Test split strategy
+============================================================
+  Rule: public sources → TRAIN only
+  Rule: ESP32 data     → TEST  only (held-out, never trained on)
+  Exception: classes 3 & 4 absent from public data
+  → Take 20% of ESP32 class 3 & 4 rows for train (stratified)
+  → Remaining 80% stay in test
+    class 3 (NH3_ammonia): 674 total → 134 to train, 540 kept in test
+    class 4 (fire_flame): 18184 total → 3636 to train, 14548 kept in test
+
+  ESP32 rows added to train (cls 3+4): 3770
+  Final test set size                : 31447
+
+============================================================
+STEP 4 — Combine training data
+============================================================
+  Public train rows : 6240
+  ESP32 cls 3&4 rows: 3770
+  Combined train    : 10010
+  Class distribution before balancing:
+    class 0 (clean          ):  1560
+    class 1 (smoke_CO       ):  1560
+    class 2 (alcohol_VOC    ):  1560
+    class 3 (NH3_ammonia    ):   134
+    class 4 (fire_flame     ):  3636
+    class 5 (mixed_LPG      ):  1560
+
+============================================================
+STEP 5 — NaN check & missing indicator audit
+============================================================
+  NaNs in combined train : 0
+  NaNs in test           : 0
+
+  Missing indicator summary (train):
+    MQ135_missing: {0.0: 6240, 1.0: 3770}
+    MQ3_missing: {0.0: 6240, 1.0: 3770}
+    MQ7_missing: {0.0: 10010}
+    MQ4_missing: {1.0: 10010}
+    DHT_temp_missing: {1.0: 6240, 0.0: 3770}
+    DHT_hum_missing: {1.0: 6240, 0.0: 3770}
+
+============================================================
+STEP 6 — Balance training set (oversample minority classes)
+============================================================
+  Target count per class: 3636
+    class 0 (clean          ): upsampled 1560 → 3636
+    class 1 (smoke_CO       ): upsampled 1560 → 3636
+    class 2 (alcohol_VOC    ): upsampled 1560 → 3636
+    class 3 (NH3_ammonia    ): upsampled 134 → 3636
+    class 4 (fire_flame     ): unchanged at 3636
+    class 5 (mixed_LPG      ): upsampled 1560 → 3636
+
+  Balanced train size: 21816
+  Classes: [np.int64(0), np.int64(1), np.int64(2), np.int64(3), np.int64(4), np.int64(5)]
+
+============================================================
+STEP 7 — Drop duplicates
+============================================================
+  Dropped 12578 duplicate rows from train
+  Train size after dedup: 9238
+  Dropped 0 duplicate rows from test
+  Test size after dedup : 31447
+
+============================================================
+STEP 8 — Final validation
+============================================================
+  Train/test row overlap : 0 rows ✓ CLEAN
+  Classes in train       : [np.int64(0), np.int64(1), np.int64(2), np.int64(3), np.int64(4), np.int64(5)] ✓ all 6
+  NaNs in final train    : 0 ✓
+  NaNs in final test     : 0 ✓
+
+  Final train distribution:
+    class 0 (clean          ):  1367
+    class 1 (smoke_CO       ):  1367
+    class 2 (alcohol_VOC    ):  1367
+    class 3 (NH3_ammonia    ):   134
+    class 4 (fire_flame     ):  3636
+    class 5 (mixed_LPG      ):  1367
+
+  Final test distribution:
+    class 0 (clean          ):  8233 (26.2%)
+    class 1 (smoke_CO       ):  2185 (6.9%)
+    class 2 (alcohol_VOC    ):  3663 (11.6%)
+    class 3 (NH3_ammonia    ):   540 (1.7%)
+    class 4 (fire_flame     ): 14548 (46.3%)
+    class 5 (mixed_LPG      ):  2278 (7.2%)
+
+============================================================
+STEP 9 — Save outputs
+============================================================
+  Saved: fused_train.csv  (9238 rows × 21 cols)
+  Saved: fused_test.csv   (31447 rows × 21 cols)

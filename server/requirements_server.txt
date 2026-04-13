@@ -1,0 +1,13 @@
+# SmartAir-Guardian — Server Dependencies
+# Install with: pip install -r server/requirements_server.txt
+
+flask>=3.0.0
+flask-cors>=4.0.0
+python-dotenv>=1.0.0
+numpy>=1.24.0
+
+# TensorFlow — required for model inference
+tensorflow>=2.15.0
+
+# Optional — MQTT alerts
+# paho-mqtt>=2.0.0

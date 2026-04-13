@@ -1,0 +1,120 @@
+# ============================================================
+#  SmartAir-Guardian — Central Model Configuration
+#  All scripts read from this file — change here, affects all
+# ============================================================
+
+project:
+  name: SmartAir-Guardian
+  version: "1.0"
+
+# ── PATHS ────────────────────────────────────────────────────
+paths:
+  train_csv:   "dataset/processed/smartair_train.csv"
+  test_csv:    "dataset/processed/smartair_test.csv"
+  model_out:   "model/outputs/smartair_model.keras"
+  results_dir: "model/outputs/"
+
+# ── CLASSES ──────────────────────────────────────────────────
+classes:
+  num_classes: 6
+  names:
+    0: "Clean Air"
+    1: "Smoke / CO"
+    2: "Alcohol / VOC"
+    3: "NH3 / Ammonia"
+    4: "Fire / Flame"
+    5: "Mixed / LPG"
+
+# ── FEATURES ─────────────────────────────────────────────────
+features:
+  sensor_cols:
+    - MQ135
+    - MQ3
+    - MQ7
+    - MQ4
+    - DHT_temp
+    - DHT_hum
+    - flame
+  engineered_cols:
+    - MQ135_MQ7_ratio
+    - MQ3_MQ4_ratio
+    - MQ135_MQ3_ratio
+    - temp_x_MQ135
+    - hum_x_MQ7
+    - AQI_score
+    - fire_risk
+  missingness_cols:
+    - MQ135_missing
+    - MQ3_missing
+    - MQ7_missing
+    - MQ4_missing
+    - DHT_temp_missing
+    - DHT_hum_missing
+  # total input size = 7 + 7 + 6 = 20
+  input_dim: 20
+
+# ── MODEL ARCHITECTURE ───────────────────────────────────────
+model:
+  # Shared backbone
+  backbone:
+    dense1_units: 128
+    dense2_units: 64
+    dropout_rate: 0.3
+    activation: relu
+
+  # Head 1 — Gas classification
+  head_classification:
+    dense_units: 32
+    activation: softmax
+    output_name: gas_class
+
+  # Head 2 — Concentration regression (PPM)
+  head_regression:
+    dense_units: 32
+    activation: linear
+    output_name: ppm
+
+  # Head 3 — AQI severity (safe/warning/danger)
+  head_severity:
+    dense_units: 32
+    activation: sigmoid
+    output_name: severity
+    num_outputs: 1   # binary: 0=safe, 1=hazard
+
+# ── TRAINING ─────────────────────────────────────────────────
+training:
+  epochs: 100
+  batch_size: 32
+  validation_split: 0.15
+  learning_rate: 0.001
+  early_stopping_patience: 15
+  reduce_lr_patience: 7
+  reduce_lr_factor: 0.5
+
+  # Loss weights — tune these if one head dominates
+  loss_weights:
+    gas_class: 1.0
+    ppm:       0.3
+    severity:  0.7
+
+  random_seed: 42
+
+# ── BASELINES ────────────────────────────────────────────────
+baselines:
+  random_forest:
+    n_estimators: 200
+    max_depth: null      # null = unlimited
+    random_state: 42
+    n_jobs: -1
+
+  svm:
+    kernel: rbf
+    C: 10
+    gamma: scale
+    random_state: 42
+
+  single_task_dnn:
+    hidden_units: [128, 64, 32]
+    dropout_rate: 0.3
+    epochs: 100
+    batch_size: 32

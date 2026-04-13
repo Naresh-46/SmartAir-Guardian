@@ -40,9 +40,10 @@ except ImportError:
     print("[INFO] Install 'rich' for a better UI: pip install rich")
 
 # ── Configuration ────────────────────────────────────────────
-BAUD_RATE    = 115200
-OUTPUT_FILE  = "gas_dataset.csv"
-BACKUP_DIR   = "dataset_backups"
+from config.settings import BAUD_RATE, DATASET_PATH
+
+OUTPUT_FILE = DATASET_PATH
+BACKUP_DIR  = "dataset_backups"
 LABEL_NAMES  = {0:"Normal", 1:"LPG", 2:"Smoke", 3:"CO", 4:"Methane"}
 LABEL_COLORS = {0:"green", 1:"yellow", 2:"red", 3:"bright_red", 4:"magenta"}
 TARGET_PER_CLASS = 500
